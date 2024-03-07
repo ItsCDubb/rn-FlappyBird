@@ -1,5 +1,13 @@
 import { Canvas, Group, Image, useImage } from "@shopify/react-native-skia";
+import { useEffect } from "react";
 import { useWindowDimensions } from "react-native";
+import {
+  Easing,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 
 const App = () => {
   const { height, width } = useWindowDimensions();
@@ -16,6 +24,18 @@ const App = () => {
   );
   const ground = useImage(require("./assets/sprites/base.png"));
 
+  const x = useSharedValue(width - 50);
+
+  useEffect(() => {
+    x.value = withRepeat(
+      withSequence(
+        withTiming(-150, { duration: 3000, easing: Easing.linear }),
+        withTiming(width, { duration: 0 })
+      ),
+      -1
+    );
+  }, []);
+
   const pipeOffset = 0;
 
   return (
@@ -27,7 +47,7 @@ const App = () => {
         image={greenPipeTop}
         height={640}
         width={104}
-        x={width / 2}
+        x={x}
         y={pipeOffset - 320}
         fit={"contain"}
       />
@@ -35,7 +55,7 @@ const App = () => {
         image={greenPipeBottom}
         height={640}
         width={104}
-        x={width / 2}
+        x={x}
         y={height - 320 + pipeOffset}
         fit={"contain"}
       />

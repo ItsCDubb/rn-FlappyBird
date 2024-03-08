@@ -1,5 +1,8 @@
 import {
   Easing,
+  Extrapolation,
+  interpolate,
+  useDerivedValue,
   useFrameCallback,
   useSharedValue,
   withRepeat,
@@ -16,6 +19,8 @@ import { useWindowDimensions } from "react-native";
 import { useEffect } from "react";
 
 const GRAVITY = 1000;
+
+const JUMP_FORCE = -500;
 
 const App = () => {
   const { height, width } = useWindowDimensions();
@@ -34,8 +39,23 @@ const App = () => {
 
   const x = useSharedValue(width);
 
-  const birdY = useSharedValue(0);
-  const birdYVelocity = useSharedValue(100);
+  const birdY = useSharedValue(height / 3);
+  const birdYVelocity = useSharedValue(0);
+  const birdTransform = useDerivedValue(() => {
+    return [
+      {
+        rotate: interpolate(
+          birdYVelocity.value,
+          [-500, 500],
+          [-0.5, 0.5],
+          Extrapolation.CLAMP
+        ),
+      },
+    ];
+  });
+  const birdOrigin = useDerivedValue(() => {
+    return { x: width / 4 + 32, y: birdY.value + 24 };
+  });
 
   useFrameCallback(({ timeSincePreviousFrame: dt }) => {
     if (!dt) return;
@@ -54,7 +74,7 @@ const App = () => {
   }, []);
 
   const gesture = Gesture.Tap().onStart(() => {
-    birdYVelocity.value = -300;
+    birdYVelocity.value = JUMP_FORCE;
   });
 
   const pipeOffset = 0;
@@ -92,7 +112,15 @@ const App = () => {
             fit={"cover"}
           />
           {/* Bird */}
-          <Image image={bird} height={48} width={64} x={width / 4} y={birdY} />
+          <Group transform={birdTransform} origin={birdOrigin}>
+            <Image
+              image={bird}
+              height={48}
+              width={64}
+              x={width / 4}
+              y={birdY}
+            />
+          </Group>
         </Canvas>
       </GestureDetector>
     </GestureHandlerRootView>

@@ -1,6 +1,7 @@
 import {
   Easing,
   Extrapolation,
+  cancelAnimation,
   interpolate,
   runOnJS,
   useAnimatedReaction,
@@ -13,7 +14,7 @@ import {
 } from "react-native-reanimated";
 import {
   Canvas,
-  Fill,
+  Circle,
   Group,
   Image,
   matchFont,
@@ -30,6 +31,8 @@ import { useEffect, useState } from "react";
 
 const GRAVITY = 1000;
 const JUMP_FORCE = -500;
+const pipeHeight = 640;
+const pipeWidth = 104;
 
 const App = () => {
   const { height, width } = useWindowDimensions();
@@ -48,16 +51,44 @@ const App = () => {
   // );
   const ground = useImage(require("./assets/sprites/base.png"));
 
+  const gameOver = useSharedValue(false);
   const x = useSharedValue(width);
+
   // Bird State
   const birdY = useSharedValue(height / 3);
-  const birdPos = {
+  const birdPosition = {
     x: width / 4,
   };
   const birdYVelocity = useSharedValue(0);
 
+  // Bird Derived Values
+  const birdCenterX = useDerivedValue(() => birdPosition.x + 32);
+  const birdCenterY = useDerivedValue(() => birdY.value + 24);
+
+  // Offsets
+  const pipeOffset = 0;
+
+  const obstacles = useDerivedValue(() => {
+    const allObstacles = [];
+    // Add Bottom Pipe
+    allObstacles.push({
+      x: x.value,
+      y: height - 320 + pipeOffset,
+      h: pipeHeight,
+      w: pipeWidth,
+    });
+    // Add Top Pipe
+    allObstacles.push({
+      x: x.value,
+      y: pipeOffset - 320,
+      h: pipeHeight,
+      w: pipeWidth,
+    });
+    return allObstacles;
+  });
+
   // Animation
-  useEffect(() => {
+  const moveTheMap = () => {
     x.value = withRepeat(
       withSequence(
         withTiming(-150, { duration: 3000, easing: Easing.linear }),
@@ -65,34 +96,93 @@ const App = () => {
       ),
       -1
     );
+  };
+  useEffect(() => {
+    moveTheMap();
   }, []);
 
+  // Scoring system
   useAnimatedReaction(
     () => x.value,
     (currentValue, previousValue) => {
-      const middle = birdPos.x;
+      const middle = birdPosition.x;
       if (
         currentValue !== previousValue &&
         previousValue &&
         currentValue <= middle &&
         previousValue > middle
       ) {
-        // do something ✨
         runOnJS(setScore)(score + 1);
       }
     }
   );
 
+  const isPointCollidingWithRect = (point, rect) => {
+    "worklet";
+    return (
+      point.x >= rect.x && // right of the left edge AND
+      point.x <= rect.x + rect.w && // left of the right edge AND
+      point.y >= rect.y && // below the top
+      point.y <= rect.y + rect.h // above the bottom
+    );
+  };
+
+  // Collision detection
+  useAnimatedReaction(
+    () => birdY.value,
+    (currentValue, previousValue) => {
+      if (currentValue > height - 100 || currentValue < 0) {
+        gameOver.value = true;
+      }
+
+      const isColliding = obstacles.value.some((rect) =>
+        isPointCollidingWithRect(
+          { x: birdCenterX.value, y: birdCenterY.value },
+          rect
+        )
+      );
+
+      if (isColliding) {
+        gameOver.value = true;
+      }
+    }
+  );
+  useAnimatedReaction(
+    () => gameOver.value,
+    (currentValue, previousValue) => {
+      if (currentValue && !previousValue) {
+        cancelAnimation(x);
+      }
+    }
+  );
+
   useFrameCallback(({ timeSincePreviousFrame: dt }) => {
-    if (!dt) return;
+    if (!dt || gameOver.value) return;
     birdY.value = birdY.value + (birdYVelocity.value * dt) / 1000;
     birdYVelocity.value = birdYVelocity.value + (GRAVITY * dt) / 1000;
   });
 
+  const restartGame = () => {
+    "worklet";
+    birdY.value = height / 3;
+    birdYVelocity.value = 0;
+    gameOver.value = false;
+    x.value = width;
+    runOnJS(moveTheMap)();
+    runOnJS(setScore)(0);
+  };
+
   // Gestures
   const gesture = Gesture.Tap().onStart(() => {
-    birdYVelocity.value = JUMP_FORCE;
+    if (gameOver.value) {
+      // Restart
+      restartGame();
+    } else {
+      // Jump
+      birdYVelocity.value = JUMP_FORCE;
+    }
   });
+
   // Derived Values
   const birdTransform = useDerivedValue(() => {
     return [
@@ -110,9 +200,6 @@ const App = () => {
     return { x: width / 4 + 32, y: birdY.value + 24 };
   });
 
-  // Offsets
-  const pipeOffset = 0;
-
   const fontFamily = Platform.select({ ios: "Helvetica", default: "serif" });
   const fontStyle = {
     fontFamily,
@@ -128,18 +215,20 @@ const App = () => {
           {/* Background */}
           <Image image={bg} height={height} width={width} fit={"cover"} />
           {/* Pipes */}
+          {/* Top */}
           <Image
             image={greenPipeTop}
-            height={640}
-            width={104}
+            height={pipeHeight}
+            width={pipeWidth}
             x={x}
             y={pipeOffset - 320}
             fit={"contain"}
           />
+          {/* Bottom */}
           <Image
             image={greenPipeBottom}
-            height={640}
-            width={104}
+            height={pipeHeight}
+            width={pipeWidth}
             x={x}
             y={height - 320 + pipeOffset}
             fit={"contain"}
@@ -159,7 +248,7 @@ const App = () => {
               image={bird}
               height={48}
               width={64}
-              x={birdPos.x}
+              x={birdPosition.x}
               y={birdY}
             />
           </Group>

@@ -66,21 +66,25 @@ const App = () => {
   const birdCenterY = useDerivedValue(() => birdY.value + 24);
 
   // Offsets
-  const pipeOffset = 0;
+  const pipeOffset = useSharedValue(0);
+
+  // Pipe Derived Values
+  const topPipeY = useDerivedValue(() => pipeOffset.value - 320);
+  const bottomPipeY = useDerivedValue(() => height - 320 + pipeOffset.value);
 
   const obstacles = useDerivedValue(() => {
     const allObstacles = [];
     // Add Bottom Pipe
     allObstacles.push({
       x: x.value,
-      y: height - 320 + pipeOffset,
+      y: height - 320 + pipeOffset.value,
       h: pipeHeight,
       w: pipeWidth,
     });
     // Add Top Pipe
     allObstacles.push({
       x: x.value,
-      y: pipeOffset - 320,
+      y: pipeOffset.value - 320,
       h: pipeHeight,
       w: pipeWidth,
     });
@@ -106,6 +110,10 @@ const App = () => {
     () => x.value,
     (currentValue, previousValue) => {
       const middle = birdPosition.x;
+
+      if (previousValue && currentValue < 0 && previousValue > 0) {
+        pipeOffset.value = Math.random() * 400 - 200;
+      }
       if (
         currentValue !== previousValue &&
         previousValue &&
@@ -221,7 +229,7 @@ const App = () => {
             height={pipeHeight}
             width={pipeWidth}
             x={x}
-            y={pipeOffset - 320}
+            y={topPipeY}
             fit={"contain"}
           />
           {/* Bottom */}
@@ -230,7 +238,7 @@ const App = () => {
             height={pipeHeight}
             width={pipeWidth}
             x={x}
-            y={height - 320 + pipeOffset}
+            y={bottomPipeY}
             fit={"contain"}
           />
           {/* Ground */}

@@ -14,7 +14,6 @@ import {
 } from "react-native-reanimated";
 import {
   Canvas,
-  Circle,
   Group,
   Image,
   matchFont,
@@ -45,25 +44,15 @@ const App = () => {
   const greenPipeBottom = useImage(
     require("./assets/sprites/pipe-green-bottom.png")
   );
-  // const redPipeTop = useImage(require("./assets/sprites/pipe-red-top.png"));
-  // const redPipeBottom = useImage(
-  //   require("./assets/sprites/pipe-red-bottom.png")
-  // );
   const ground = useImage(require("./assets/sprites/base.png"));
 
   const gameOver = useSharedValue(false);
-  const x = useSharedValue(width);
+  const pipeX = useSharedValue(width);
 
   // Bird State
   const birdY = useSharedValue(height / 3);
-  const birdPosition = {
-    x: width / 4,
-  };
+  const birdX = width / 4;
   const birdYVelocity = useSharedValue(0);
-
-  // Bird Derived Values
-  const birdCenterX = useDerivedValue(() => birdPosition.x + 32);
-  const birdCenterY = useDerivedValue(() => birdY.value + 24);
 
   // Offsets
   const pipeOffset = useSharedValue(0);
@@ -72,28 +61,26 @@ const App = () => {
   const topPipeY = useDerivedValue(() => pipeOffset.value - 320);
   const bottomPipeY = useDerivedValue(() => height - 320 + pipeOffset.value);
 
-  const obstacles = useDerivedValue(() => {
-    const allObstacles = [];
-    // Add Bottom Pipe
-    allObstacles.push({
-      x: x.value,
-      y: height - 320 + pipeOffset.value,
+  const obstacles = useDerivedValue(() => [
+    // Bottom Pipe
+    {
+      x: pipeX.value,
+      y: bottomPipeY.value,
       h: pipeHeight,
       w: pipeWidth,
-    });
-    // Add Top Pipe
-    allObstacles.push({
-      x: x.value,
-      y: pipeOffset.value - 320,
+    },
+    // Top Pipe
+    {
+      x: pipeX.value,
+      y: topPipeY.value,
       h: pipeHeight,
       w: pipeWidth,
-    });
-    return allObstacles;
-  });
+    },
+  ]);
 
   // Animation
   const moveTheMap = () => {
-    x.value = withRepeat(
+    pipeX.value = withRepeat(
       withSequence(
         withTiming(-150, { duration: 3000, easing: Easing.linear }),
         withTiming(width, { duration: 0 })
@@ -101,17 +88,18 @@ const App = () => {
       -1
     );
   };
+
   useEffect(() => {
     moveTheMap();
   }, []);
 
   // Scoring system
   useAnimatedReaction(
-    () => x.value,
+    () => pipeX.value,
     (currentValue, previousValue) => {
-      const middle = birdPosition.x;
-
-      if (previousValue && currentValue < 0 && previousValue > 0) {
+      const middle = birdX;
+      // Change offest of pipes
+      if (previousValue && currentValue < -100 && previousValue > -100) {
         pipeOffset.value = Math.random() * 400 - 200;
       }
       if (
@@ -139,27 +127,27 @@ const App = () => {
   useAnimatedReaction(
     () => birdY.value,
     (currentValue, previousValue) => {
+      const center = {
+        x: birdX + 32,
+        y: birdY.value + 24,
+      };
       if (currentValue > height - 100 || currentValue < 0) {
         gameOver.value = true;
       }
-
       const isColliding = obstacles.value.some((rect) =>
-        isPointCollidingWithRect(
-          { x: birdCenterX.value, y: birdCenterY.value },
-          rect
-        )
+        isPointCollidingWithRect(center, rect)
       );
-
       if (isColliding) {
         gameOver.value = true;
       }
     }
   );
+
   useAnimatedReaction(
     () => gameOver.value,
     (currentValue, previousValue) => {
       if (currentValue && !previousValue) {
-        cancelAnimation(x);
+        cancelAnimation(pipeX);
       }
     }
   );
@@ -175,7 +163,7 @@ const App = () => {
     birdY.value = height / 3;
     birdYVelocity.value = 0;
     gameOver.value = false;
-    x.value = width;
+    pipeX.value = width;
     runOnJS(moveTheMap)();
     runOnJS(setScore)(0);
   };
@@ -204,10 +192,12 @@ const App = () => {
       },
     ];
   });
+
   const birdOrigin = useDerivedValue(() => {
     return { x: width / 4 + 32, y: birdY.value + 24 };
   });
 
+  // Font Decoration
   const fontFamily = Platform.select({ ios: "Helvetica", default: "serif" });
   const fontStyle = {
     fontFamily,
@@ -222,25 +212,27 @@ const App = () => {
         <Canvas style={{ height, width }}>
           {/* Background */}
           <Image image={bg} height={height} width={width} fit={"cover"} />
+
           {/* Pipes */}
-          {/* Top */}
-          <Image
-            image={greenPipeTop}
-            height={pipeHeight}
-            width={pipeWidth}
-            x={x}
-            y={topPipeY}
-            fit={"contain"}
-          />
           {/* Bottom */}
           <Image
             image={greenPipeBottom}
             height={pipeHeight}
             width={pipeWidth}
-            x={x}
+            x={pipeX}
             y={bottomPipeY}
             fit={"contain"}
           />
+          {/* Top */}
+          <Image
+            image={greenPipeTop}
+            height={pipeHeight}
+            width={pipeWidth}
+            x={pipeX}
+            y={topPipeY}
+            fit={"contain"}
+          />
+
           {/* Ground */}
           <Image
             image={ground}
@@ -250,16 +242,12 @@ const App = () => {
             y={height - 75}
             fit={"cover"}
           />
+
           {/* Bird */}
           <Group transform={birdTransform} origin={birdOrigin}>
-            <Image
-              image={bird}
-              height={48}
-              width={64}
-              x={birdPosition.x}
-              y={birdY}
-            />
+            <Image image={bird} height={48} width={64} x={birdX} y={birdY} />
           </Group>
+
           {/* Score */}
           <Text
             text={score.toString()}

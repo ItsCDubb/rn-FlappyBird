@@ -61,6 +61,10 @@ const App = () => {
   const topPipeY = useDerivedValue(() => pipeOffset.value - 320);
   const bottomPipeY = useDerivedValue(() => height - 320 + pipeOffset.value);
 
+  const pipeSpeed = useDerivedValue(() => {
+    return interpolate(score, [0, 10], [1, 5]);
+  });
+
   const obstacles = useDerivedValue(() => [
     // Bottom Pipe
     {
@@ -78,20 +82,21 @@ const App = () => {
     },
   ]);
 
-  // Animation
-  const moveTheMap = () => {
-    pipeX.value = withRepeat(
-      withSequence(
-        withTiming(-150, { duration: 3000, easing: Easing.linear }),
-        withTiming(width, { duration: 0 })
-      ),
-      -1
-    );
-  };
-
   useEffect(() => {
     moveTheMap();
   }, []);
+
+  // Animation
+  const moveTheMap = () => {
+    pipeX.value = withSequence(
+      withTiming(width, { duration: 0 }),
+      withTiming(-150, {
+        duration: 3000 / pipeSpeed.value,
+        easing: Easing.linear,
+      }),
+      withTiming(width, { duration: 0 })
+    );
+  };
 
   // Scoring system
   useAnimatedReaction(
@@ -101,6 +106,8 @@ const App = () => {
       // Change offest of pipes
       if (previousValue && currentValue < -100 && previousValue > -100) {
         pipeOffset.value = Math.random() * 400 - 200;
+        cancelAnimation(pipeX);
+        runOnJS(moveTheMap)();
       }
       if (
         currentValue !== previousValue &&

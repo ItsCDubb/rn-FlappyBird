@@ -62,7 +62,7 @@ const App = () => {
   const bottomPipeY = useDerivedValue(() => height - 320 + pipeOffset.value);
 
   const pipeSpeed = useDerivedValue(() => {
-    return interpolate(score, [0, 10], [1, 5]);
+    return interpolate(score, [0, 20], [1, 2]);
   });
 
   const obstacles = useDerivedValue(() => [
